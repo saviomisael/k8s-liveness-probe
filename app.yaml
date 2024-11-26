@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vollmed
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: vollmed
+  template:
+    metadata:
+      labels:
+        app: vollmed
+    spec:
+      containers:
+        - name: vollmed-api
+          image: leonardosartorello/vollmed-api:1 # podman build -t saviom/vollmed-api:1 ./aplicacao
+          resources:
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: vollmed-configmap
+            - secretRef:
+                name: secret-vollmed
+          livenessProbe:
+            httpGet:
+              path: /paciente
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 3
+
+---
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: secret-vollmed
+stringData:
+  DB_USER: root
+  DB_PASSWORD: "12345"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vollmed-configmap
+data:
+  DB_HOST: "mysql"
+  DB_PORT: "3306"
+  DB_DATABASE: testemed
+  SERVER_PORT: "3000"
+  SECRET: qualquercoisa
+  SECRET_KEY: senha32bits
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vollmed-loadbalancer
+spec:
+  type: LoadBalancer # LoadBalanacer tem proteção contra DoS e DDoS, melhor que isso só o Ingress
+  selector:
+    app: vollmed
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: api
